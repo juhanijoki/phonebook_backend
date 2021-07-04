@@ -1,11 +1,13 @@
-const { response, request } = require('express')
 const express = require('express')
+// const cool = require('cool-ascii-faces')
 // const morgan = require('morgan')
 const app = express()
 const cors = require('cors')
 
+app.use(express.static('build'))
 app.use(cors())
 app.use(express.json())
+
 // app.use(morgan('combined'))
 // const morg = morgan('tiny')
 
@@ -33,46 +35,63 @@ let persons = [
     }
   ]
 
+const requestLogger = (request, response, next) => {
+    console.log('Method: ', request.method)
+    console.log('Path: ', request.path)
+    console.log('Body: ', request.body)
+    console.log('---')
+    next()
+}
+
+app.use(requestLogger)
+
+
+console.log('get ennen')
 app.get('/', (req, res) => {
-  res.send('<h1>Backend toimii!</h1>')
+    console.log('get sisällä')
+    res.send('<h1>Backend toimii!</h1>')
 })
+console.log('get jälkeen')
 
-app.get('/api/persons', (request, response) => {
+app.get('/api/persons', (req, res) => {
+    console.log('api persons sisällä')
     if (persons) {
-        response.json(persons)
-    } else {
-        response.status(404).end()
-    }
-    
-})
-
-app.get('/api/persons/:id', (req, res) => {
-    const id = Number(req.params.id)
-    console.log(id)
-    const person = persons.find(person => person.id === id)
-    console.log(person)
-    if (person) {
-        res.json(person.number)
+        res.json(persons)
     } else {
         res.status(404).end()
     }
 })
+console.log('api persons jälkeen')
 
-app.get('/info', (request, res) => {
+// app.get('/cool', (req, res) => res.send(cool()))
+
+app.get('/api/persons/:id', (request, response) => {
+    const id = Number(request.params.id)
+    console.log(id)
+    const person = persons.find(person => person.id === id)
+    console.log(person)
+    if (person) {
+        response.json(person.number)
+    } else {
+        response.status(404).end()
+    }
+})
+
+app.get('/info', (request, response) => {
     const info = {
         length: persons.length,
         time: String(new Date()),
     }
     console.log(info)
-    res.send(`<p>Phonebook has info for ${info.length} people</p>
+    response.send(`<p>Phonebook has info for ${info.length} people</p>
     <p>${info.time}</p>`)
 })
 
-app.delete('/api/persons/:id', (req, res) => {
-    const id = Number(req.params.id)
+app.delete('/api/persons/:id', (request, response) => {
+    const id = Number(request.params.id)
     persons = persons.filter(person => person.id !== id)
 
-    res.status(204).end()
+    response.status(204).end()
 })
 
 const generateId = () => {
@@ -100,6 +119,12 @@ app.post('/api/persons', (request, response) => {
 
     response.json(person)
 })
+
+const unknownEndpoint = (request, response) => {
+    response.status(404).send({ error: 'unknown endpoint' })
+}
+
+app.use(unknownEndpoint)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
