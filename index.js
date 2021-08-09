@@ -1,4 +1,6 @@
 const express = require('express')
+require('dotenv').config()
+const Person = require('./models/person')
 // const cool = require('cool-ascii-faces')
 // const morgan = require('morgan')
 const app = express()
@@ -11,29 +13,18 @@ app.use(express.json())
 // app.use(morgan('combined'))
 // const morg = morgan('tiny')
 
-
-let persons = [
-    {
-      "id": 1,
-      "name": "Arto Hellas",
-      "number": "040-123456"
-    },
-    {
-      "id": 2,
-      "name": "Ada Lovelace",
-      "number": "23-24-453544"
-    },
-    {
-      "id": 3,
-      "name": "Dan Abramov",
-      "number": "12-43-234545"
-    },
-    {
-      "id": 4,
-      "name": "Mary Poppendick",
-      "number": "44-3432242"
+const errorHandler = (error, request, response, next) => {
+    console.error(error.message)
+  
+    if (error.name === 'CastError') {
+      return response.status(400).send({ error: 'malformatted id' })
+    } else if (error.name === 'ValidationError') {
+        return response.status(400).json({ error: error.message })
     }
-  ]
+  
+    next(error)
+}
+
 
 const requestLogger = (request, response, next) => {
     console.log('Method: ', request.method)
@@ -45,41 +36,27 @@ const requestLogger = (request, response, next) => {
 
 app.use(requestLogger)
 
-
-console.log('get ennen')
-app.get('/', (req, res) => {
-    console.log('get sisällä')
-    res.send('<h1>Backend toimii!</h1>')
-})
-console.log('get jälkeen')
-
-app.get('/api/persons', (req, res) => {
-    console.log('api persons sisällä')
-    if (persons) {
-        res.json(persons)
-    } else {
-        res.status(404).end()
-    }
-})
-console.log('api persons jälkeen')
-
-// app.get('/cool', (req, res) => res.send(cool()))
-
-app.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    console.log(id)
-    const person = persons.find(person => person.id === id)
-    console.log(person)
-    if (person) {
-        response.json(person.number)
-    } else {
-        response.status(404).end()
-    }
+app.get('/api/persons', (request, response) => {
+    Person.find({}).then(persons => {
+        response.json(persons)
+    })
 })
 
+app.get('/api/persons/:id', (request, response, next) => {
+    Person.findById(request.params.id)
+        .then(person => {
+        if (person) {
+            response.json(person)
+        } else {
+            response.status(404).end()
+        }
+    })
+    .catch(error => next(error))
+})
+ 
 app.get('/info', (request, response) => {
     const info = {
-        length: persons.length,
+        length: Person.findAll().length,
         time: String(new Date()),
     }
     console.log(info)
@@ -87,21 +64,17 @@ app.get('/info', (request, response) => {
     <p>${info.time}</p>`)
 })
 
-app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    persons = persons.filter(person => person.id !== id)
-
-    response.status(204).end()
+app.delete('/api/persons/:id', (request, response, next) => {
+    Person.findByIdAndRemove(request.params.id)
+        .then(result => {
+            response.status(204).end()
+        })
+        .catch(error => next(error))
 })
 
-const generateId = () => {
-    const maxId = persons.length > 0
-        ? Math.floor(20*Math.random())
-        : 0
-    return maxId + 1
-} 
 
-app.post('/api/persons', (request, response) => {
+// Uusi henkilö luetteloon
+app.post('/api/persons', (request, response, next) => {
     const body = request.body
 
     if (!body.name) {
@@ -110,15 +83,40 @@ app.post('/api/persons', (request, response) => {
         })
     }
 
-    const person = {
-        id: generateId(),
+    const person = new Person({
         name: body.name,
         number: body.number,
-    }
-    persons.concat(person)
+    })
+    person.save(function (error) {
+        console.log(error)
+    })
 
-    response.json(person)
+    person.save()
+        .then(savedPerson => savedPerson.toJSON())
+        .then(savedAndFormattedPerson => {
+            response.json(savedAndFormattedPerson)
+        })
+        .catch(error => next(error))
+
 })
+
+// Henkilön numeron muutoksen käsittely.
+// app.put('/api/persons/:id', (request, response, next) => {
+//     const body = request.body
+  
+//     const person = {
+//       name: body.name,
+//       number: body.number,
+//     }
+  
+//     Person.findByIdAndUpdate(request.params.id, person, { new: true })
+//       .then(updatedPerson => {
+//         response.json(updatedPerson)
+//       })
+//       .catch(error => next(error))
+//   })
+
+
 
 const unknownEndpoint = (request, response) => {
     response.status(404).send({ error: 'unknown endpoint' })
@@ -126,7 +124,9 @@ const unknownEndpoint = (request, response) => {
 
 app.use(unknownEndpoint)
 
-const PORT = process.env.PORT || 3001
+app.use(errorHandler)
+
+const PORT = process.env.PORT
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
 })
