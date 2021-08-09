@@ -36,7 +36,7 @@ const Person = mongoose.model('Person', personSchema)
 //   name: 'Richard Feynman',
 //   number: '044-458755',
 // })
-
+ 
 Person.find({}).then(result => {
   result.forEach(person => {
       console.log(person)
